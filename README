@@ -1,0 +1,34 @@
+matlab_mat_file_tools
+=====================
+
+A python tool set to read data from matlab mat files using scipy.io and h5py (Also requires numpy). The goal of the project is to have a function that will replace sio.loadmat and work with both unicode and hdf5 mat files.
+
+Written by Jim Rafferty: james.m.rafferty@gmail.com
+
+Usage - include in a python script in the following way:
+
+import mat_file_tools as mft
+data = mft.load_data('/path/to/mat/file.mat')
+
+load_data(data_file, vars_in = None)
+get_variable_list(data_file)
+
+data_to_dict(hdf5_data)
+cell_to_list(hdf5_data, data_file = None)
+
+
+load_data(data_file, vars_in = None)
+This is the basic function that reads a mat file and returns a dict containing data
+Inputs: data_file - a string with the path to a mat file
+        vars_in - a list of strings with variable names to load in. If this is None, 
+                  all variables are read in.
+Outputs: data - a dict containing data. Each matlab variable is referenced by name (string)
+
+get_variable_list(data_file)
+This function finds the variable names stored in a mat file.
+Inputs: data_file - a string with the path to a mat file
+Outputs: var_list - a list of strings containing variable names.
+
+data_to_dict(hdf5_data) - Internal function used to read hdf5 mat file data into a dict.
+
+cell_to_list(hdf5_data, data_file = None)- Internal function used to dereference a matlab cell array into a list.
