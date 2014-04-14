@@ -2,6 +2,8 @@
 # 
 # Written by Jim Rafferty: james.m.rafferty@gmail.com
 #
+# License is GNU GPLv3.
+#
 ################################# Available functions #################################
 #
 # load_data(data_file, vars_in = None)
