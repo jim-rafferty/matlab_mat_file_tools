@@ -28,19 +28,22 @@ def load_data(data_file, vars_in = None):
     """ 
     load_data(data_file, vars_in = None)
  
-    This is the basic function that reads a mat file and returns a dict containing data
+    This is the basic function that reads a mat file and returns a dict 
+    containing data
 
     Inputs: data_file - a string with the path to a mat file
-             vars_in - a list of strings with variable names to load in. If this is None, 
-                       all variables are read in.
+                vars_in - a list of strings with variable names to load in. 
+                If this is None, all variables are read in.
 
-    Outputs: data - a dict containing data. Each matlab variable is reference by name (string)
+    Outputs: data - a dict containing data. Each matlab variable is reference
+                by name (string)
 
     """ 
 
     try:
-        data = sio.loadmat(data_file, variable_names = vars_in) 
-        # TODO: get index structure of outputs to match for unicode and hdf5
+        data = sio.loadmat(data_file, variable_names = vars_in,
+                                    struct_as_record=False, squeeze_me=True)
+        data = _check_keys(data)
         # TODO: add other useful optional arguments for sio.loadmat and code 
         # below.
     except NotImplementedError:
@@ -150,6 +153,31 @@ def cell_to_list(hdf5_data, data_file = None):
         if prod(hdf5_shape) == prod(shape(data_out)):
             data_out = reshape(data_out, hdf5_shape)
     return data_out
+
+def _check_keys(dict):
+    '''
+    These functions came from http://stackoverflow.com/a/8832212
+    checks if entries in dictionary are mat-objects. If yes
+    todict is called to change them to nested dictionaries
+    '''
+    for key in dict:
+        if isinstance(dict[key], sio.matlab.mio5_params.mat_struct):
+            dict[key] = _todict(dict[key])
+    return dict        
+
+def _todict(matobj):
+    '''
+    These functions came from http://stackoverflow.com/a/8832212
+    A recursive function which constructs from matobjects nested dictionaries
+    '''
+    dict = {}
+    for strg in matobj._fieldnames:
+        elem = matobj.__dict__[strg]
+        if isinstance(elem, sio.matlab.mio5_params.mat_struct):
+            dict[strg] = _todict(elem)
+        else:
+            dict[strg] = elem
+    return dict
 
 if __name__ == "__main__":
 
