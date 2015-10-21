@@ -1,29 +1,31 @@
 """ 
 This is a library of tools for use in reading mat files into python.
- 
+
+to import:
+import os, sys
+sys.path.insert(0, 'relative/path/to/Toolbox/')
+import mat_file_load_tools as mft
+
  Written by Jim Rafferty: james.m.rafferty@gmail.com
 
- License is GNU GPLv3.
+ License is GNU GPLv2.
 
 Available functions
 
  load_data(data_file, vars_in = None)
  get_variable_list(data_file)
 
- data_to_dict(hdf5_data)
- cell_to_list(hdf5_data, data_file = None)
-
 """
 
 import scipy.io as sio
 import h5py as hio
-from numpy import object_, reshape, prod, shape
+from numpy import object_, reshape, prod, shape, ndarray
 
 def string(seq):
     """Convert a sequence of integers into a single string."""
     return ''.join([chr(a) for a in seq])
 
-def load_data(data_file, vars_in = None):
+def load_data(data_file, variables = None):
 
     """ 
     load_data(data_file, vars_in = None)
@@ -41,22 +43,22 @@ def load_data(data_file, vars_in = None):
     """ 
 
     try:
-        data = sio.loadmat(data_file, variable_names = vars_in,
+        data = sio.loadmat(data_file, variable_names = variables,
                                     struct_as_record=False, squeeze_me=True)
-        data = _check_keys(data)
+        data = __check_keys(data)
         # TODO: add other useful optional arguments for sio.loadmat and code 
         # below.
     except NotImplementedError:
         h_keys = get_variable_list(data_file)
-        if vars_in == None: 
+        if variables == None: 
             keys_sel = h_keys
         else:
-            keys_sel = vars_in
+            keys_sel = variables
         data_h = hio.File(data_file, 'r')
         data = {}
         for k in h_keys: 
             if k in keys_sel:
-                data[k] = data_to_dict(data_h[k])
+                data[k] = __data_to_dict(data_h[k])
 
     return data
 
@@ -92,9 +94,9 @@ def get_variable_list(data_file):
 
     return var_list
 
-def data_to_dict(hdf5_data):
+def __data_to_dict(hdf5_data):
     """
-     data_to_dict(hdf5_data)
+     __data_to_dict(hdf5_data)
 
      Internal function used to read hdf5 mat file data into a dict.
     """
@@ -103,23 +105,32 @@ def data_to_dict(hdf5_data):
         data_out = {}
         key_list = hdf5_data.keys()
         for key in key_list:
-            data_out[key] = data_to_dict(hdf5_data[key])
-    elif type(hdf5_data) == hio._hl.dataset.Dataset:        
+            data_out[key] = __data_to_dict(hdf5_data[key])
+    elif type(hdf5_data) == hio._hl.dataset.Dataset:
         if hdf5_data.dtype.type == object_:                 
-            data_out = cell_to_list(hdf5_data)
-        else:            
+            data_out = __cell_to_list(hdf5_data)
+           
+        else:
             if 'MATLAB_int_decode' in hdf5_data.attrs.keys():
                 data_out = string(hdf5_data.value)
             else:
-                data_out = hdf5_data.value
+                data_out = hdf5_data.value.squeeze()
     else:
-        raise TypeError('data_to_dict expects a HDF5 data type input')
-
+        raise TypeError('__data_to_dict expects a HDF5 data type input')
+    if type(data_out) == ndarray:
+        data_out = __ndarray2list(data_out)
+    return data_out
+    
+def __ndarray2list(data_in):
+    if len(data_in.shape) != 0:
+        data_out = data_in.tolist()
+    else:
+        data_out = data_in.item()
     return data_out
 
-def cell_to_list(hdf5_data, data_file = None):
+def __cell_to_list(hdf5_data, data_file = None):
     """
-    cell_to_list(hdf5_data, data_file = None)
+    __cell_to_list(hdf5_data, data_file = None)
 
     Internal function used to dereference a matlab cell array into a list.
     """
@@ -133,7 +144,7 @@ def cell_to_list(hdf5_data, data_file = None):
     data_out = []
     if len(hdf5_shape) > 1:
         for k in range(hdf5_shape[len(hdf5_shape)-2]):
-            data_out.append(cell_to_list(hdf5_data[k], data_file))
+            data_out.append(__cell_to_list(hdf5_data[k], data_file))
     else:
         for k in range(hdf5_shape[0]):
             if type(data_file[hdf5_data[k]]) == hio._hl.dataset.Dataset:
@@ -141,20 +152,24 @@ def cell_to_list(hdf5_data, data_file = None):
                     if 'MATLAB_int_decode' in data_file[hdf5_data[k]].attrs.keys():
                         data_out.append(string(data_file[hdf5_data[k]].value))
                     else:
-                        data_out.append(data_file[hdf5_data[k]].value)
+                        data_out = __data_to_dict(data_file[hdf5_data[k]])
                 else:
                     # matlab variables are always at least 2D, 
                     # unless they are empty
                     data_out.append([])
             elif type(data_file[hdf5_data[k]]) == hio._hl.group.Group:
-                data_out.append(data_to_dict(data_file[hdf5_data[k]]))
+                data_out.append(__data_to_dict(data_file[hdf5_data[k]]))
 
     if reshape_data:
         if prod(hdf5_shape) == prod(shape(data_out)):
-            data_out = reshape(data_out, hdf5_shape)
+            data_out = reshape(data_out, hdf5_shape).squeeze()
+            if len(data_out.shape) == 1:
+                data_out = data_out.tolist()
+    if type(data_out) == ndarray:
+        data_out = __ndarray2list(data_out)
     return data_out
 
-def _check_keys(dict):
+def __check_keys(dict):
     '''
     These functions came from http://stackoverflow.com/a/8832212
     checks if entries in dictionary are mat-objects. If yes
@@ -162,10 +177,20 @@ def _check_keys(dict):
     '''
     for key in dict:
         if isinstance(dict[key], sio.matlab.mio5_params.mat_struct):
-            dict[key] = _todict(dict[key])
-    return dict        
+            dict[key] = __todict(dict[key])
+        elif type(dict[key]) == ndarray:
+            if len(dict[key].shape) > 0:
+                var_list = [[]] * len(dict[key])
+                for k_elem in xrange(len(dict[key])):
+                    if isinstance(dict[key][k_elem],
+                                            sio.matlab.mio5_params.mat_struct):
+                        var_list[k_elem] = __todict(dict[key][k_elem])
+                    else:
+                        var_list[k_elem] = dict[key][k_elem]
+                dict[key] = var_list
+    return dict
 
-def _todict(matobj):
+def __todict(matobj):
     '''
     These functions came from http://stackoverflow.com/a/8832212
     A recursive function which constructs from matobjects nested dictionaries
@@ -174,7 +199,7 @@ def _todict(matobj):
     for strg in matobj._fieldnames:
         elem = matobj.__dict__[strg]
         if isinstance(elem, sio.matlab.mio5_params.mat_struct):
-            dict[strg] = _todict(elem)
+            dict[strg] = __todict(elem)
         else:
             dict[strg] = elem
     return dict
